@@ -2,7 +2,7 @@
 Copyright (c) 2019-present NAVER Corp.
 MIT License
 """
-
+import transformers
 import os
 import json
 import time
@@ -20,7 +20,8 @@ from tokenization import Tokenizer
 from dataset import read_data, QueryDataset, collate_fn
 from model import LMConfig, LanguageModel
 from utils import get_params, get_model, model_save, model_load, TrainLogger
-
+from GPT2LMHeadModel import GPT2LMHeadModel
+from transformers import  GPT2Config
 
 logging.basicConfig(format='%(asctime)s -  %(message)s', datefmt='%m/%d/%Y %H:%M:%S', level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -32,8 +33,9 @@ def get_args():
     parser = argparse.ArgumentParser(description="Training a LSTM language model for queries")
     # data, model directory
     parser.add_argument('--data_dir', default="data/aol/full")
+    #parser.add_argument('--resume', default='/home/qac/models/unigram', type=str)
     parser.add_argument('--resume', default=None, type=str)
-    parser.add_argument('--model_dir', default=None, type=str)
+    parser.add_argument('--model_dir', default='/home/qac/models/unigram', type=str)
     parser.add_argument('--min_len', type=int, default=3)   # min_prefix_len + min_suffix_len
 
     # tokenization
@@ -53,16 +55,16 @@ def get_args():
 
     # training
     parser.add_argument('--max_seq_len', type=int, default=40)
-    parser.add_argument('--lr', type=float, default=5e-3)
+    parser.add_argument('--lr', type=float, default=5e-5)
     parser.add_argument('--n_epochs', type=int, default=30)
-    parser.add_argument('--bsz', type=int, default=1024)
+    parser.add_argument('--bsz', type=int, default=512)
     parser.add_argument('--clip', default=0.25)
     parser.add_argument('--log_interval', type=int, default=1000)
     parser.add_argument('--eval_interval', type=int, default=None)
     parser.add_argument('--eval_n_steps', type=int, default=None)
 
     parser.add_argument('--seed', type=int, default=0)
-    parser.add_argument('--num_workers', type=int, default=16)
+    parser.add_argument('--num_workers', type=int, default=1)
     args = parser.parse_args()
 
     logger.info(f"device: {device}, n_gpu: {n_gpu}")
@@ -88,16 +90,22 @@ def parse_sample_options(x):
 
 def calc_loss(model, batch):
     previous, target, length, mask = batch
-    mask = (previous != 0).unsqueeze(-2)
-
-    mask = mask.view(previous.size(0), previous.size(1))
-
-
-    #print(previous.shape)
-    output, _ = model(previous, mask,length=length.unsqueeze(0))
     bsz = previous.size(1)
-    raw_loss = F.cross_entropy(output.view(-1, get_model(model).ntoken), target.view(-1), reduction='none')
+    # previous = previous.transpose(1, 0)
+    # target = target.transpose(1, 0)
+    # mask = mask.transpose(1, 0)
+    previous = previous.t().contiguous()
+    output = model(previous)
+    output = output[0]
+
+    output = output.transpose(0, 1).contiguous()
+
+
+
+
+    raw_loss = F.cross_entropy(output.view(-1, 256), target.view(-1), reduction='none')
     raw_loss = raw_loss.view(-1, bsz)
+
     loss = (raw_loss * mask.float()).sum(0).mean()
     items = [loss.data.item(), bsz, mask.sum().item()]
     return loss, items
@@ -216,10 +224,16 @@ def main(args):
     logger.info("Preparing model and optimizer")
     config = LMConfig(ntoken, args.ninp, args.nhid, args.nlayers,
                       args.dropouti, args.dropoutr, args.dropouth, args.dropouto)
-    model = LanguageModel(config).to(device)
+    #model = LanguageModel(config).to(device)
+    config_gpt =GPT2Config.from_json_file('config.json')
+    #GPT2Config.from_json_file(output_config_file)
+    model = GPT2LMHeadModel(config_gpt).to(device)
+
     params = get_params(model)
     logger.info(f"  Number of model parameters: {sum(p.numel() for p in params)}")
-    optimizer = torch.optim.Adam(params)
+    #optimizer = torch.optim.Adam(params,lr=args.lr,betas=(0.9, 0.98), eps = 1e-9)
+    optimizer = transformers.AdamW(params)
+
 
     if args.resume:
         logger.info(f"Loading model from {args.resume}")

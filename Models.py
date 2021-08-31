@@ -19,14 +19,25 @@ class Encoder(nn.Module):
         self.layers = get_clones(EncoderLayer(d_model, heads, dropout), N)
         self.norm = Norm(d_model)
 
-    def forward(self, src, mask):
+    def forward(self, src, mask,length):
+        src = self.embed(src)
+        if length is not None:
+            # print("++++++++++++++++++++++++")
+            # print(length.shape)
+            length, perm_idx = length.sort(0, descending=True)
+            # print(length)
+            # print(perm_idx)
+            src = src[:, perm_idx]
         #print(src.shape)
-        x = self.embed(src)
+
         #print(x.shape)
-        x = self.pe(x)
+        x = self.pe(src)
         for i in range(self.N):
 
             x = self.layers[i](x, mask)
+        if length is not None:
+            inv_perm_idx = perm_idx.sort(0)[1]
+            x = x[:, inv_perm_idx]
         return self.norm(x)
 
 

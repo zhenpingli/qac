@@ -9,8 +9,8 @@ import math
 import torch
 
 from model import LMConfig, LanguageModel
-
-
+from transformers import  GPT2Config
+from GPT2LMHeadModel import GPT2LMHeadModel
 class TrainLogger(object):
     def __init__(self):
         self.init()
@@ -60,12 +60,17 @@ def model_save(path, model, optimizer=None):
 
 
 def model_load(path, model=None, optimizer=None):
-    config = LMConfig(os.path.join(path, 'config.json'))
+    #config = LMConfig(os.path.join(path, 'config.json'))
+    config_gpt =GPT2Config.from_json_file('config.json')
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    #GPT2Config.from_json_file(output_config_file)
+
     if model is None:
-        model_to_load = LanguageModel(config)
+        model_to_load = GPT2LMHeadModel(config_gpt).to(device)
+        #model_to_load = LanguageModel(config)
     else:
         model_to_load = get_model(model)
-        model_to_load.__init__(config)
+        model_to_load.__init__(config_gpt)
     model_state_dict = torch.load(open(os.path.join(path, 'model.pt'), 'rb'), map_location=lambda s, l: s)
     model_to_load.load_state_dict(model_state_dict)
     if optimizer:

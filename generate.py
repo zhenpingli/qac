@@ -57,7 +57,7 @@ def get_args():
 
     parser.add_argument('--verbose_completion', action='store_true')
     parser.add_argument('--seed', type=int, default=0)
-    parser.add_argument('--num_workers', type=int, default=16)
+    parser.add_argument('--num_workers', type=int, default=0)
     args = parser.parse_args()
 
     logger.info(f"device: {device}")
@@ -109,31 +109,25 @@ def remove_duplicates(candidates, prefix, n_candidates, do_merge=False):
     return filtered
 
 
-def beam_search(model, hidden, input, best_score, off, beam_size, branching_factor, max_suffix_len):
-
+def beam_search(model, input, past, best_score, off, beam_size, branching_factor, max_suffix_len):
     bsz = best_score.size(0)
-    batch_idx = torch.arange(bsz).to(device)
+
 
     prev_beam_idxs = []
     new_token_idxs = []
     end_scores = []
     end_prev_beam_idxs = []
-
+    #past = None
     for i in range(max_suffix_len):
 
-        mask_attention = (input != 0).unsqueeze(-2)
-        mask_attention = mask_attention.view(input.size(0), input.size(1))
-        # mask_attention = mask_attention.squeeze()
-        # print("11111111111111111111111111")
-        # mask_attention = mask_attention.unsqueeze(0)
-        # print(mask_attention.shape)
-        # print(input.shape)
-        # print("22222222222222222222222222")
-        output, hidden = model(input,mask_attention, hidden=hidden)            # output: (1, batch * beam, ntoken)
+        input = input.transpose(0, 1).contiguous()
+        pred = model(input,past)            # output: (1, batch * beam, ntoken)
+        output = pred['logits']
+        past = pred['past_key_values']
+        output = output.transpose(0, 1).contiguous()
 
         logp = F.log_softmax(output.squeeze(0), 1)              # logp: (batch * beam, t)
         if i == 0 and off is not None:
-
             logp.masked_fill_(off.unsqueeze(1).repeat(1, beam_size, 1).view(bsz * beam_size, -1), -float('inf'))
         score = logp + best_score.view(-1).unsqueeze(1)     # score: (batch * beam, t)
 
@@ -157,8 +151,7 @@ def beam_search(model, hidden, input, best_score, off, beam_size, branching_fact
         prev_beam_idxs.append(prev_beam_idx)
         new_token_idxs.append(new_token_idx)
         input = new_token_idx.view(1, -1)
-        hidden_idx = (prev_beam_idx + batch_idx.unsqueeze(1).mul(beam_size)).view(-1)
-        hidden = [(h.index_select(0, hidden_idx), c.index_select(0, hidden_idx)) for h, c in hidden]
+
 
         if (best_score[:, 0] < end_score[:, -1]).all():
             break
@@ -173,6 +166,7 @@ def beam_search(model, hidden, input, best_score, off, beam_size, branching_fact
             pos[j][~end[j]] = prev_beam_idxs[i][j, pos[j, ~end[j]]]
             pos[j][end[j]] = end_prev_beam_idxs[i][j, pos[j, end[j]] - beam_size]
     decode_len = (tokens != 2).sum(2).max(1)[0]
+
     return tokens, end_scores[-1], decode_len
 
 
@@ -185,56 +179,31 @@ def complete(model, tokenizer, batch, args):
     beam_size = args.beam_size
     branching_factor = args.branching_factor
     max_suffix_len = args.max_suffix_len
+    previous = previous.transpose(0, 1).contiguous()
+    pred = model(previous)
+    output = pred['logits']
+    past = pred['past_key_values']
+    past1 = [(h.repeat(beam_size,1,1,1),
+                   c.repeat(beam_size,1,1,1),) for h, c in past]
+    past1 = tuple(past1)
 
-    ##################
-
-    mask_attention = (previous != 0).unsqueeze(-2)
-    # print("complete input ")
-    # print(previous.shape)
-    # print(mask_attention.shape)
-    # print("complete input ")
-    mask_attention = mask_attention.view(previous.size(0), previous.size(1))
-
-    #mask_attention = mask_attention.squeeze()
-
-    # #mask_attention = mask_attention.unsqueeze(1)
-    # print("33333333333333333")
-    # print(previous.shape)
-    # print(mask_attention.shape)
-    # if len(list(mask_attention.shape)) >2:
-    #     mask_attention = mask_attention.squeeze()
-    #     print(mask_attention.shape)
-    #     print("error len not same")
-    # if mask_attention.shape != previous.shape:
-    #     print(previous.size(0))
-    #     print(previous.size(1))
-    #     mask_attention = mask_attention.view(previous.size(0),previous.size(1))
-    #     print(mask_attention.shape)
-    #     print("error shape not same")
-    # print("44444444444444444")
-    ##################
-    output, hidden = model(previous,mask_attention, length=length)
+    output = output.transpose(0, 1).contiguous()
 
     raw_loss = F.cross_entropy(output.view(-1, args.ntoken), target.view(-1), reduction='none').view(-1, nb_bsz)
-
     logp = -(raw_loss * mask.float()).sum(0)
-
-    new_hidden = [(h[:r_bsz].unsqueeze(1).repeat(1, beam_size, 1),
-                   c[:r_bsz].unsqueeze(1).repeat(1, beam_size, 1)) for h, c in hidden]
 
 
     best_scores = logp.unsqueeze(1).repeat(1, beam_size)  # (batch, beam)
-
     best_scores[:, 1:].fill_(-float('inf'))
     if args.nbest > 1:
         for i, (s, e) in enumerate(nbest_idx):
-            for (nh, nc), (h, c) in zip(new_hidden, hidden):
-                nh[i, :-(e - s)] = h[s:e]
-                nc[i, :-(e - s)] = c[s:e]
-            best_scores[i, :-(e - s)] = logp[s:e]
-    hidden = [(h.view(r_bsz * beam_size, -1), c.view(r_bsz * beam_size, -1)) for h, c in new_hidden]
 
-    bs_output = beam_search(model, hidden, input, best_scores, off, beam_size, branching_factor, max_suffix_len)
+            best_scores[i, :-(e - s)] = logp[s:e]
+    # new_hidden = [(h[:r_bsz].unsqueeze(1).repeat(1, beam_size, 1),
+    #                c[:r_bsz].unsqueeze(1).repeat(1, beam_size, 1)) for h, c in past]
+    # hidden = [(h.view(r_bsz * beam_size, -1), c.view(r_bsz * beam_size, -1)) for h, c in new_hidden]
+
+    bs_output = beam_search(model, input, past1, best_scores, off, beam_size, branching_factor, max_suffix_len)
     tokens, scores, decode_length = [v.tolist() for v in bs_output]
 
     candidates = [[(prefix + ''.join([tokenizer.vocab[x] for x in t if x != 2]).replace('▁', ' '), s)

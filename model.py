@@ -11,7 +11,8 @@ import torch
 import torch.nn as nn
 from torch.nn import Parameter
 from Models import Encoder
-
+from transformers import  GPT2Config
+from GPT2LMHeadModel import GPT2Model
 
 class LSTMCell(nn.Module):
     def __init__(self, input_size, hidden_size, bias=True, layernorm=False, dropoutr=0):
@@ -72,9 +73,11 @@ class LSTM(nn.Module):
         self.dropouth = nn.Dropout(dropouth) if dropouth > 0 else None
         self.dropouto = nn.Dropout(dropouto) if dropouto > 0 else None
         self.batch_first = batch_first
-        self.cells = nn.ModuleList([LSTMCell(input_size, hidden_size, bias=bias, layernorm=layernorm, dropoutr=dropoutr)
-                      for input_size, hidden_size in zip(dims[:-1], dims[1:])])
-        self.reset_parameters()
+        # self.cells = nn.ModuleList([LSTMCell(input_size, hidden_size, bias=bias, layernorm=layernorm, dropoutr=dropoutr)
+        #               for input_size, hidden_size in zip(dims[:-1], dims[1:])])
+        self.cells = LSTMCell(100, 600, bias=bias, layernorm=layernorm, dropoutr=dropoutr)
+
+        #self.reset_parameters()
 
     def reset_parameters(self):
         for cell in self.cells:
@@ -82,9 +85,9 @@ class LSTM(nn.Module):
 
     def init_hidden(self, batch_size):
         weight = next(self.parameters()).data
-        return [(weight.new(batch_size, hidden_size).zero_(),
-                 weight.new(batch_size, hidden_size).zero_())
-                for hidden_size in self.dims[1:]]
+        return (weight.new(batch_size, 600).zero_(),
+                 weight.new(batch_size, 600).zero_())
+
 
     @staticmethod
     def _forward_unroll(cell, input, hx, length=None):
@@ -95,9 +98,11 @@ class LSTM(nn.Module):
             if length is not None:
                 while length[num_continues - 1] <= time:
                     num_continues -= 1
-            h_next, c_next = cell(input[time, :num_continues], (hx[0][:num_continues], hx[1][:num_continues]))
-            h_next = torch.cat((h_next[:num_continues], hx[0][num_continues:]), 0)
-            c_next = torch.cat((c_next[:num_continues], hx[1][num_continues:]), 0)
+            h_next, c_next = cell(input[time, :], (hx[0][:], hx[1][:]))
+            h_next, c_next = cell(input[time, :])
+            #h_next, c_next = cell(input[time, :num_continues], (hx[0][:num_continues], hx[1][:num_continues]))
+            #h_next = torch.cat((h_next[:num_continues], hx[0][num_continues:]), 0)
+            #c_next = torch.cat((c_next[:num_continues], hx[1][num_continues:]), 0)
             output.append(h_next)
             hx = (h_next, c_next)
         output = torch.stack(output, 0)
@@ -117,12 +122,17 @@ class LSTM(nn.Module):
 
         if not hxs: hxs = self.init_hidden(input.size(1))
         new_hxs = []
-        for l, (cell, hx) in enumerate(zip(self.cells, hxs)):
-            output, new_hx = self._forward_unroll(cell, input, hx, length)
-            new_hxs.append(new_hx)
-            if l != self.nlayers - 1 and self.dropouth:
-                output = self.dropouth(output)
-            input = output
+        # for l, (cell, hx) in enumerate(zip(self.cells, hxs)):
+        #     output, new_hx = self._forward_unroll(cell, input, hx, length)
+        #     new_hxs.append(new_hx)
+        #     if l != self.nlayers - 1 and self.dropouth:
+        #         output = self.dropouth(output)
+        #     input = output
+
+        output, new_hx = self._forward_unroll(self.cells, input, hxs, length)
+        new_hxs.append(new_hx)
+
+        input = output
         if self.dropouto:
             output = self.dropouto(output)
 
@@ -168,18 +178,34 @@ class LanguageModel(nn.Module):
         self.ntoken = ntoken = config.ntoken
         self.ninp = ninp = config.ninp
         self.nhid = nhid = config.nhid
+
         self.nlayers = nlayers = config.nlayers
 
-        #self.encoder = nn.Embedding(ntoken, ninp)
-        self.encoder = Encoder(ntoken, 100, 3, 5, 0.1)
+        self.encoder = nn.Embedding(ntoken, ninp)
         self.dropouti = nn.Dropout(config.dropouti) if config.dropouti > 0 else None
         self.lstm = LSTM([ninp] + [nhid] * nlayers, bias=False, layernorm=True,
                          dropoutr=config.dropoutr, dropouth=config.dropouth, dropouto=config.dropouto)
+
         self.projection = nn.Linear(nhid, ninp)
         self.decoder = nn.Linear(ninp, ntoken)
+
+
+
+
+        # self.nlayers = nlayers = config.nlayers
+        # config_gpt =GPT2Config.from_json_file('config.json')
+        # #GPT2Config.from_json_file(output_config_file)
+        # self.transformer = GPT2Model(config_gpt)
+        # self.encoder = nn.Embedding(256, 200)
+        # #self.encoder = Encoder(ntoken, 512, 3, 4, 0.1)
+        # self.dropouti = nn.Dropout(config.dropouti) if config.dropouti > 0 else None
+        # self.lstm = LSTM([ninp] + [nhid] * nlayers, bias=False, layernorm=True,
+        #                  dropoutr=config.dropoutr, dropouth=config.dropouth, dropouto=config.dropouto)
+        # self.projection = nn.Linear(200, ninp)
+        # self.decoder = nn.Linear(ninp, ntoken)
         #self.decoder.weight = self.encoder.weight
 
-        self.init_weights()
+        # self.init_weights()
 
     def init_weights(self):
         initrange = 0.1
@@ -187,16 +213,85 @@ class LanguageModel(nn.Module):
         self.decoder.bias.data.fill_(0)
         self.decoder.weight.data.uniform_(-initrange, initrange)
 
-    def forward(self, input, src_mask, hidden=None, length=None):
+    # @staticmethod
+    # def _forward_unroll(cell, input, length=None):
+    #     seq_len = input.size(0)
+    #     num_continues = input.size(1)
+    #     output = []
+    #     for time in range(seq_len):
+    #         if length is not None:
+    #             while length[num_continues - 1] <= time:
+    #                 num_continues -= 1
+    #
+    #         test = input[time, :num_continues].unsqueeze(0)
+    #
+    #         # print(test.shape)
+    #         h_next = cell(inputs_embeds =test )
+    #         # print("======================")
+    #         # #print(h_next[0][:num_continues])
+    #         # print(input[time,num_continues:].shape)
+    #         # print("======================")
+    #
+    #         test_temp = h_next[0][:num_continues].squeeze()
+    #
+    #         if len(list(test_temp.shape)) == 1:
+    #             test_temp = test_temp.unsqueeze(0)
+    #         h_next = torch.cat((test_temp, input[time,num_continues:]), 0)
+    #         output.append(h_next)
+    #
+    #     output = torch.stack(output, 0)
+    #
+    #     return output   # output: (seq_len, batch, d_{i+1})
 
-        emb = self.encoder(input, src_mask)
+    def forward(self, input, src_mask, hidden=None, length=None):
+        emb = self.encoder(input)
         if self.dropouti:
             emb = self.dropouti(emb)
         if length is not None and len(length.size()) > 1:
             length = length.squeeze(0)
         output, hidden = self.lstm(emb, hidden, length)
         output = self.projection(output)
-        input1 = output.view(output.size(0) * output.size(1), output.size(2))
-        decoded = self.decoder(input1)
+        decoded = self.decoder(output.view(output.size(0) * output.size(1), output.size(2)))
         result = decoded.view(output.size(0), output.size(1), decoded.size(1))
         return result, hidden
+
+
+
+
+
+        #
+        # # if self.dropouti:
+        # #     emb = self.dropouti(emb)
+        # if length is not None and len(length.size()) > 1:
+        #     length = length.squeeze(0)
+        #
+        # input = self.encoder(input)
+        # if self.dropouti:
+        #     input = self.dropouti(input)
+        # if length is not None:
+        #
+        #     length, perm_idx = length.sort(0, descending=True)
+        #
+        #     input = input[:, perm_idx]
+        #
+        #
+        # # print(input.shape)
+        # emb = self._forward_unroll(self.transformer, input, length)
+        #
+        #
+        #
+        #
+        #
+        # #transformer_outputs = self.transformer(inputs_embeds = input)
+        # #emb = transformer_outputs[0]
+        #
+        # if length is not None:
+        #     inv_perm_idx = perm_idx.sort(0)[1]
+        #     emb = emb[:, inv_perm_idx]
+        #
+        # output = self.projection(emb)
+        #
+        # #input1 = output.view(output.size(0) * output.size(1), output.size(2))
+        # decoded = self.decoder(output.view(output.size(0) * output.size(1), output.size(2)))
+        # result = decoded.view(output.size(0), output.size(1), decoded.size(1))
+        # return result, hidden
