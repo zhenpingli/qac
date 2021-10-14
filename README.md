@@ -200,34 +200,43 @@ Process finished with exit code 0
 ``` 
 ## Transformers
 ``` 
-08/31/2021 21:04:42 -  Loading tokenizer from spm/unigram/spm.model
-08/31/2021 21:04:42 -    Vocab size: 256
-08/31/2021 21:04:42 -  Reading a dataset (all quries from test.query.txt)
-08/31/2021 21:04:42 -    Number of test data:     1990 (seen 433, unseen 1557)
-08/31/2021 21:04:42 -  Loading model from /home/qac/models/unigram
-08/31/2021 21:04:46 -  Generation starts!
-08/31/2021 21:06:59 -    mean decode length:  7.0
-08/31/2021 21:06:59 -  133.2 s | 67.0 ms/query | 14.9 qps
-08/31/2021 21:06:59 -  mrr @ 1: 0.4642 (seen) 0.1291 (unseen) 0.2020 (all)
-08/31/2021 21:06:59 -  mrr @ 2: 0.5069 (seen) 0.1500 (unseen) 0.2276 (all)
-08/31/2021 21:06:59 -  mrr @ 3: 0.5162 (seen) 0.1551 (unseen) 0.2337 (all)
-08/31/2021 21:06:59 -  mrr @ 4: 0.5242 (seen) 0.1582 (unseen) 0.2378 (all)
-08/31/2021 21:06:59 -  mrr @ 5: 0.5252 (seen) 0.1596 (unseen) 0.2391 (all)
-08/31/2021 21:06:59 -  mrr @ 6: 0.5267 (seen) 0.1605 (unseen) 0.2402 (all)
-08/31/2021 21:06:59 -  mrr @ 7: 0.5287 (seen) 0.1612 (unseen) 0.2411 (all)
-08/31/2021 21:06:59 -  mrr @ 8: 0.5296 (seen) 0.1613 (unseen) 0.2414 (all)
-08/31/2021 21:06:59 -  mrr @ 9: 0.5301 (seen) 0.1614 (unseen) 0.2416 (all)
-08/31/2021 21:06:59 -  mrr @10: 0.5303 (seen) 0.1617 (unseen) 0.2419 (all)
-08/31/2021 21:06:59 -   
-08/31/2021 21:06:59 -  pmrr @ 1: 0.5335 (seen) 0.2653 (unseen) 0.3236 (all)
-08/31/2021 21:06:59 -  pmrr @ 2: 0.5831 (seen) 0.3031 (unseen) 0.3641 (all)
-08/31/2021 21:06:59 -  pmrr @ 3: 0.5924 (seen) 0.3130 (unseen) 0.3738 (all)
-08/31/2021 21:06:59 -  pmrr @ 4: 0.6022 (seen) 0.3188 (unseen) 0.3804 (all)
-08/31/2021 21:06:59 -  pmrr @ 5: 0.6027 (seen) 0.3220 (unseen) 0.3831 (all)
-08/31/2021 21:06:59 -  pmrr @ 6: 0.6038 (seen) 0.3244 (unseen) 0.3852 (all)
-08/31/2021 21:06:59 -  pmrr @ 7: 0.6061 (seen) 0.3257 (unseen) 0.3867 (all)
-08/31/2021 21:06:59 -  pmrr @ 8: 0.6070 (seen) 0.3269 (unseen) 0.3879 (all)
-08/31/2021 21:06:59 -  pmrr @ 9: 0.6075 (seen) 0.3273 (unseen) 0.3883 (all)
-08/31/2021 21:06:59 -  pmrr @10: 0.6077 (seen) 0.3278 (unseen) 0.3887 (all)
+10/14/2021 18:55:21 -  Loading tokenizer from spm/unigram/spm.model
+10/14/2021 18:55:21 -    Vocab size: 256
+10/14/2021 18:55:21 -  Reading a dataset (all quries from test.query.txt)
+10/14/2021 18:55:21 -    Number of test data:     4330 (seen 1064, unseen 3266)
+10/14/2021 18:55:21 -  Loading model from /home/qac/models/unigram
+10/14/2021 18:55:25 -  Generation starts!
+10/14/2021 19:00:39 -    mean decode length:  7.9
+10/14/2021 19:00:39 -  314.3 s | 72.6 ms/query | 13.8 qps
+10/14/2021 19:00:39 -  mrr @ 1: 0.5019 (seen) 0.1448 (unseen) 0.2326 (all)
+10/14/2021 19:00:39 -  mrr @ 2: 0.5555 (seen) 0.1661 (unseen) 0.2618 (all)
+10/14/2021 19:00:39 -  mrr @ 3: 0.5752 (seen) 0.1721 (unseen) 0.2712 (all)
+10/14/2021 19:00:39 -  mrr @ 4: 0.5811 (seen) 0.1755 (unseen) 0.2752 (all)
+10/14/2021 19:00:39 -  mrr @ 5: 0.5856 (seen) 0.1772 (unseen) 0.2776 (all)
+10/14/2021 19:00:39 -  mrr @ 6: 0.5882 (seen) 0.1786 (unseen) 0.2792 (all)
+10/14/2021 19:00:39 -  mrr @ 7: 0.5894 (seen) 0.1794 (unseen) 0.2801 (all)
+10/14/2021 19:00:39 -  mrr @ 8: 0.5899 (seen) 0.1799 (unseen) 0.2807 (all)
+10/14/2021 19:00:39 -  mrr @ 9: 0.5906 (seen) 0.1804 (unseen) 0.2812 (all)
+10/14/2021 19:00:39 -  mrr @10: 0.5910 (seen) 0.1808 (unseen) 0.2816 (all)
+10/14/2021 19:00:39 -   
+10/14/2021 19:00:39 -  pmrr @ 1: 0.5451 (seen) 0.2716 (unseen) 0.3388 (all)
+10/14/2021 19:00:39 -  pmrr @ 2: 0.6048 (seen) 0.3085 (unseen) 0.3813 (all)
+10/14/2021 19:00:39 -  pmrr @ 3: 0.6220 (seen) 0.3219 (unseen) 0.3956 (all)
+10/14/2021 19:00:39 -  pmrr @ 4: 0.6281 (seen) 0.3277 (unseen) 0.4016 (all)
+10/14/2021 19:00:39 -  pmrr @ 5: 0.6334 (seen) 0.3311 (unseen) 0.4053 (all)
+10/14/2021 19:00:39 -  pmrr @ 6: 0.6368 (seen) 0.3346 (unseen) 0.4088 (all)
+10/14/2021 19:00:39 -  pmrr @ 7: 0.6379 (seen) 0.3359 (unseen) 0.4101 (all)
+10/14/2021 19:00:39 -  pmrr @ 8: 0.6385 (seen) 0.3371 (unseen) 0.4112 (all)
+10/14/2021 19:00:39 -  pmrr @ 9: 0.6393 (seen) 0.3381 (unseen) 0.4121 (all)
+10/14/2021 19:00:39 -  pmrr @10: 0.6400 (seen) 0.3386 (unseen) 0.4127 (all)
+
+
+
+config:
+  "n_ctx": 1024,
+  "n_embd": 512,
+  "n_head": 8,
+  "n_layer": 8,
+  "n_positions": 1024,
 
 ``` 
